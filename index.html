@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MonsterQuest - Edizione Scarlatto</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+  :root {
+    --red: #c0392b;
+    --dark-red: #7b241c;
+    --cream: #f5f0dc;
+    --dark: #1a1a2e;
+    --green: #2ecc71;
+    --yellow: #f1c40f;
+    --blue: #3498db;
+    --gray: #95a5a6;
+    --tile: 32px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; image-rendering: pixelated; }
+
+  body {
+    background: #0a0a0a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Press Start 2P', monospace;
+    color: #fff;
+  }
+
+  #title-screen {
+    position: fixed; inset: 0;
+    background: #c0392b;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 100;
+    gap: 24px;
+  }
+
+  #title-screen h1 {
+    font-size: 2.2rem;
+    color: #fff;
+    text-shadow: 4px 4px #7b241c;
+    animation: flicker 2s infinite;
+    letter-spacing: 4px;
+  }
+
+  #title-screen .edition {
+    font-size: 1rem;
+    color: #ffe;
+    text-shadow: 2px 2px #7b241c;
+  }
+
+  #title-screen .press-start {
+    font-size: 0.7rem;
+    color: #ffe;
+    animation: blink 1s step-end infinite;
+    margin-top: 32px;
+  }
+
+  .title-mon {
+    font-size: 4rem;
+    animation: float 2s ease-in-out infinite;
+    filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+  }
+
+  @keyframes flicker { 0%,100%{opacity:1} 50%{opacity:.85} }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+  @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
+
+  #game-container {
+    position: relative;
+    width: 480px;
+    background: #000;
+    border: 4px solid #333;
+    box-shadow: 0 0 40px rgba(192,57,43,0.4);
+    display: none;
+  }
+
+  /* TOP BAR */
+  #top-bar {
+    background: var(--red);
+    padding: 6px 10px;
+    font-size: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 3px solid var(--dark-red);
+  }
+
+  /* WORLD VIEW */
+  #world-area {
+    position: relative;
+    width: 480px;
+    height: 320px;
+    overflow: hidden;
+    background: #2a5f1e;
+  }
+
+  #world-canvas { display: block; }
+
+  /* HUD overlay */
+  #hud {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    padding: 8px;
+    font-size: 0.45rem;
+    display: flex;
+    gap: 12px;
+    color: #fff;
+  }
+
+  /* BATTLE SCREEN */
+  #battle-screen {
+    display: none;
+    flex-direction: column;
+    width: 480px;
+  }
+
+  #battle-field {
+    height: 220px;
+    background: linear-gradient(180deg, #87CEEB 0%, #87CEEB 60%, #8B7355 60%, #6B5735 100%);
+    position: relative;
+    overflow: hidden;
+    border-bottom: 3px solid #333;
+  }
+
+  .battle-platform {
+    position: absolute;
+    bottom: 60px;
+    width: 100px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(0,0,0,0.3);
+  }
+
+  .enemy-platform { right: 60px; bottom: 110px; }
+  .player-platform { left: 60px; bottom: 55px; }
+
+  .battle-sprite {
+    position: absolute;
+    font-size: 4rem;
+    line-height: 1;
+    animation: float 1.5s ease-in-out infinite;
+    filter: drop-shadow(2px 4px 0 rgba(0,0,0,0.4));
+  }
+
+  .enemy-sprite { right: 60px; bottom: 120px; }
+  .player-sprite { left: 40px; bottom: 60px; transform: scaleX(-1); }
+  .player-sprite.attacking { animation: attack 0.3s ease-out; }
+  .enemy-sprite.hurt { animation: hurt 0.3s ease-out; }
+
+  @keyframes attack {
+    0%{transform:scaleX(-1) translateX(0)}
+    50%{transform:scaleX(-1) translateX(60px)}
+    100%{transform:scaleX(-1) translateX(0)}
+  }
+  @keyframes hurt {
+    0%,100%{filter:drop-shadow(2px 4px 0 rgba(0,0,0,0.4)) brightness(1)}
+    50%{filter:drop-shadow(2px 4px 0 rgba(0,0,0,0.4)) brightness(3) saturate(0)}
+  }
+  @keyframes enemyAttack {
+    0%{transform:translateX(0)}
+    50%{transform:translateX(-60px)}
+    100%{transform:translateX(0)}
+  }
+
+  /* HP Bars */
+  .hp-card {
+    position: absolute;
+    background: var(--cream);
+    border: 3px solid #222;
+    padding: 6px 10px;
+    border-radius: 4px;
+    min-width: 160px;
+    box-shadow: 3px 3px 0 #222;
+  }
+
+  .enemy-hp-card { top: 14px; left: 14px; }
+  .player-hp-card { bottom: 14px; right: 14px; }
+
+  .hp-card .mon-name {
+    font-size: 0.55rem;
+    color: #111;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .hp-label {
+    font-size: 0.45rem;
+    color: #111;
+    margin: 4px 0 2px;
+  }
+
+  .hp-bar-bg {
+    background: #555;
+    height: 8px;
+    border-radius: 2px;
+    overflow: hidden;
+    border: 1px solid #222;
+  }
+
+  .hp-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s ease, background 0.4s;
+  }
+
+  .hp-high { background: #2ecc71; }
+  .hp-mid  { background: #f1c40f; }
+  .hp-low  { background: #e74c3c; }
+
+  /* Battle UI bottom */
+  #battle-ui {
+    background: var(--cream);
+    border-top: 3px solid #222;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #battle-log {
+    padding: 10px 14px;
+    font-size: 0.5rem;
+    color: #111;
+    min-height: 52px;
+    border-bottom: 2px solid #ccc;
+    line-height: 1.8;
+  }
+
+  #battle-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 2px solid #ccc;
+  }
+
+  .action-btn {
+    padding: 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.5rem;
+    background: var(--cream);
+    border: none;
+    border-right: 2px solid #ccc;
+    border-bottom: 2px solid #ccc;
+    cursor: pointer;
+    color: #111;
+    transition: background 0.1s;
+    text-align: left;
+  }
+  .action-btn:hover, .action-btn.selected { background: #ddd; }
+  .action-btn:last-child { border-right: none; }
+
+  #move-panel {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .move-btn {
+    padding: 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.45rem;
+    border: none;
+    border-right: 2px solid #ccc;
+    border-bottom: 2px solid #ccc;
+    cursor: pointer;
+    transition: filter 0.1s;
+    color: #fff;
+    text-align: left;
+    text-shadow: 1px 1px #000;
+  }
+  .move-btn:hover { filter: brightness(1.2); }
+
+  .type-fuoco   { background: #e74c3c; }
+  .type-acqua   { background: #3498db; }
+  .type-erba    { background: #27ae60; }
+  .type-normale { background: #95a5a6; }
+  .type-elettro { background: #f39c12; }
+  .type-psico   { background: #9b59b6; }
+  .type-roccia  { background: #7f8c8d; }
+  .type-veleno  { background: #8e44ad; }
+
+  /* OVERWORLD */
+  #dialog-box {
+    display: none;
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: var(--cream);
+    border-top: 3px solid #222;
+    padding: 10px 14px;
+    font-size: 0.5rem;
+    color: #111;
+    min-height: 56px;
+    line-height: 2;
+    z-index: 10;
+  }
+
+  /* PARTY / MENU */
+  #menu-screen {
+    display: none;
+    background: #1a1a2e;
+    width: 480px;
+    padding: 14px;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .menu-title {
+    font-size: 0.6rem;
+    color: var(--yellow);
+    border-bottom: 2px solid #333;
+    padding-bottom: 6px;
+    margin-bottom: 4px;
+  }
+
+  .party-card {
+    background: #16213e;
+    border: 2px solid #0f3460;
+    border-radius: 4px;
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .party-card .sprite { font-size: 1.8rem; }
+  .party-card .info { flex: 1; }
+  .party-card .pname { font-size: 0.5rem; color: #fff; margin-bottom: 4px; }
+  .party-card .plevel { font-size: 0.4rem; color: var(--yellow); }
+  .party-card .php { margin-top: 4px; }
+
+  #bottom-bar {
+    background: #111;
+    padding: 6px 10px;
+    font-size: 0.4rem;
+    color: #666;
+    display: flex;
+    gap: 16px;
+    border-top: 2px solid #333;
+  }
+
+  .key-hint span { color: #fff; }
+
+  /* Transitions */
+  .screen-fade {
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+  /* Level up / catch overlay */
+  #overlay-msg {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.85);
+    align-items: center; justify-content: center;
+    z-index: 200;
+    flex-direction: column;
+    gap: 16px;
+  }
+  #overlay-msg .big { font-size: 2rem; }
+  #overlay-msg .msg { font-size: 0.7rem; color: var(--yellow); text-align: center; line-height: 2; }
+  #overlay-msg .sub { font-size: 0.5rem; color: #fff; animation: blink 1s step-end infinite; }
+
+  /* INTRO / NAME screen skip for simplicity */
+  #title-screen button {
+    margin-top: 8px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7rem;
+    background: #fff;
+    color: #c0392b;
+    border: none;
+    padding: 12px 24px;
+    cursor: pointer;
+    border-radius: 2px;
+    box-shadow: 4px 4px 0 #7b241c;
+    transition: transform 0.1s, box-shadow 0.1s;
+  }
+  #title-screen button:active { transform: translate(4px,4px); box-shadow: 0 0 0 #7b241c; }
+
+  /* Sferabestia animation for catch */
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .sfera-spin { animation: spin 0.4s linear infinite; display: inline-block; }
+</style>
+</head>
+<body>
+
+<!-- TITLE SCREEN -->
+<div id="title-screen">
+  <div class="title-mon">🔴</div>
+  <h1>MonsterQuest</h1>
+  <div class="edition">✦ EDIZIONE SCARLATTO ✦</div>
+  <button onclick="startGame()">▶ NUOVA PARTITA</button>
+  <div class="press-start">Premi INVIO per iniziare</div>
+</div>
+
+<!-- GAME CONTAINER -->
+<div id="game-container">
+  <div id="top-bar">
+    <span>🗺 CITTÀ DI ALBA</span>
+    <span id="badge-count">🏅 0 Medaglie</span>
+  </div>
+
+  <!-- WORLD -->
+  <div id="world-area">
+    <canvas id="world-canvas" width="480" height="320"></canvas>
+    <div id="hud">
+      <span>💰 <span id="gold">500</span>₽</span>
+      <span>🎒 Oggetti: <span id="item-count">3</span></span>
+      <span>📍 <span id="zone-name">Città di Alba</span></span>
+    </div>
+    <div id="dialog-box"></div>
+  </div>
+
+  <!-- BATTLE SCREEN -->
+  <div id="battle-screen">
+    <div id="battle-field">
+      <div class="hp-card enemy-hp-card">
+        <div class="mon-name"><span id="e-name">BULBASAUR</span><span id="e-level">Lv5</span></div>
+        <div class="hp-label">HP</div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill hp-high" id="e-hp-bar" style="width:100%"></div></div>
+        <div id="e-hp-text" style="font-size:0.4rem;color:#111;margin-top:2px"></div>
+      </div>
+      <div class="battle-platform enemy-platform"></div>
+      <div class="battle-sprite enemy-sprite" id="enemy-sprite">🌿</div>
+
+      <div class="hp-card player-hp-card">
+        <div class="mon-name"><span id="p-name">CHARMANDER</span><span id="p-level">Lv5</span></div>
+        <div class="hp-label">HP</div>
+        <div class="hp-bar-bg"><div class="hp-bar-fill hp-high" id="p-hp-bar" style="width:100%"></div></div>
+        <div id="p-hp-text" style="font-size:0.4rem;color:#111;margin-top:2px"></div>
+      </div>
+      <div class="battle-platform player-platform"></div>
+      <div class="battle-sprite player-sprite" id="player-sprite">🔥</div>
+    </div>
+
+    <div id="battle-ui">
+      <div id="battle-log">Cosa farà CHARMANDER?</div>
+      <div id="battle-actions">
+        <button class="action-btn" onclick="showMoves()">⚔ LOTTA</button>
+        <button class="action-btn" onclick="tryRun()">🏃 FUGA</button>
+        <button class="action-btn" onclick="useSferabestia()">🔴 SFERA BESTIA</button>
+        <button class="action-btn" onclick="showParty()">📋 SQUADRA</button>
+      </div>
+      <div id="move-panel" style="display:grid"></div>
+    </div>
+  </div>
+
+  <!-- MENU / PARTY SCREEN -->
+  <div id="menu-screen">
+    <div class="menu-title">▣ LA TUA SQUADRA</div>
+    <div id="party-list"></div>
+    <button class="action-btn" style="margin-top:8px;background:#333;color:#fff;border:2px solid #555;padding:8px;font-family:'Press Start 2P';font-size:0.5rem;cursor:pointer" onclick="closeMenu()">↩ INDIETRO</button>
+  </div>
+
+  <div id="bottom-bar">
+    <div class="key-hint">⬆⬇⬅➡ <span>Muovi</span></div>
+    <div class="key-hint">Z <span>Interagisci</span></div>
+    <div class="key-hint">X <span>Menu</span></div>
+    <div class="key-hint">ESC <span>Fuga</span></div>
+  </div>
+</div>
+
+<!-- OVERLAY MSG -->
+<div id="overlay-msg">
+  <div class="big" id="overlay-emoji">🎉</div>
+  <div class="msg" id="overlay-text"></div>
+  <div class="sub">Premi Z per continuare</div>
+</div>
+
+<script>
+// ============================================================
+//  DATA
+// ============================================================
+const MONSTERS = {
+  charmander:  { name:"CHARMANDER",  emoji:"🔥", type:"fuoco",   baseHp:39, baseAtk:52, baseDef:43, baseSpd:65, moves:["Fiammata","Artigli","Brace","Schivata"] },
+  bulbasaur:   { name:"BULBASAUR",   emoji:"🌿", type:"erba",    baseHp:45, baseAtk:49, baseDef:49, baseSpd:45, moves:["FogliaRasoio","Assorbi","Frustata","Crescita"] },
+  squirtle:    { name:"SQUIRTLE",    emoji:"💧", type:"acqua",   baseHp:44, baseAtk:48, baseDef:65, baseSpd:43, moves:["Idropompa","Conchiglia","Schizz","Ritirata"] },
+  pikachu:     { name:"PIKACHU",     emoji:"⚡", type:"elettro", baseHp:35, baseAtk:55, baseDef:30, baseSpd:90, moves:["Tuono","Fulmine","Schizz","Ritirata"] },
+  rattata:     { name:"RATTATA",     emoji:"🐭", type:"normale", baseHp:30, baseAtk:56, baseDef:35, baseSpd:72, moves:["Morso","Taccheggio","Scalfittura","Urlo"] },
+  pidgey:      { name:"PIDGEY",      emoji:"🐦", type:"normale", baseHp:40, baseAtk:45, baseDef:40, baseSpd:56, moves:["Sventola","BeccoBola","Vento","Volo"] },
+  geodude:     { name:"GEODUDE",     emoji:"🪨", type:"roccia",  baseHp:40, baseAtk:80, baseDef:100,baseSpd:20, moves:["RocciaBomba","Sasso","Difesa","Testata"] },
+  gengar:      { name:"GENGAR",      emoji:"👻", type:"veleno",  baseHp:60, baseAtk:65, baseDef:60, baseSpd:110,moves:["Ipnosi","NotteBuia","Leccapiedi","Terrore"] },
+  mewtwo:      { name:"MEWTWO",      emoji:"🔮", type:"psico",   baseHp:106,baseAtk:110,baseDef:90, baseSpd:130,moves:["Psichico","CelestPotere","Recupero","Barriera"] },
+};
+
+const MOVES_DATA = {
+  "Fiammata":    { power:40, type:"fuoco",   acc:100 },
+  "Artigli":     { power:35, type:"normale", acc:100 },
+  "Brace":       { power:60, type:"fuoco",   acc:100 },
+  "Schivata":    { power:0,  type:"normale", acc:100, effect:"raise_def" },
+  "FogliaRasoio":{ power:55, type:"erba",    acc:95  },
+  "Assorbi":     { power:20, type:"erba",    acc:100, effect:"drain" },
+  "Frustata":    { power:35, type:"normale", acc:100 },
+  "Crescita":    { power:0,  type:"erba",    acc:100, effect:"raise_atk" },
+  "Idropompa":   { power:110,type:"acqua",   acc:80  },
+  "Conchiglia":  { power:0,  type:"acqua",   acc:100, effect:"raise_def" },
+  "Schizz":      { power:40, type:"acqua",   acc:100 },
+  "Ritirata":    { power:0,  type:"normale", acc:100, effect:"flee_move" },
+  "Tuono":       { power:90, type:"elettro", acc:70  },
+  "Fulmine":     { power:60, type:"elettro", acc:100 },
+  "Morso":       { power:60, type:"normale", acc:100 },
+  "Taccheggio":  { power:40, type:"normale", acc:100 },
+  "Scalfittura": { power:30, type:"normale", acc:100 },
+  "Urlo":        { power:0,  type:"normale", acc:100, effect:"lower_atk" },
+  "Sventola":    { power:35, type:"normale", acc:100 },
+  "BeccoBola":   { power:35, type:"normale", acc:100 },
+  "Vento":       { power:40, type:"normale", acc:100 },
+  "Volo":        { power:70, type:"normale", acc:95  },
+  "RocciaBomba": { power:75, type:"roccia",  acc:90  },
+  "Sasso":       { power:50, type:"roccia",  acc:100 },
+  "Difesa":      { power:0,  type:"normale", acc:100, effect:"raise_def" },
+  "Testata":     { power:80, type:"normale", acc:100 },
+  "Ipnosi":      { power:0,  type:"psico",   acc:60,  effect:"sleep" },
+  "NotteBuia":   { power:80, type:"veleno",  acc:100 },
+  "Leccapiedi":  { power:65, type:"normale", acc:100 },
+  "Terrore":     { power:0,  type:"normale", acc:100, effect:"lower_atk" },
+  "Psichico":    { power:90, type:"psico",   acc:100 },
+  "CelestPotere":{ power:120,type:"psico",   acc:90  },
+  "Recupero":    { power:0,  type:"normale", acc:100, effect:"heal" },
+  "Barriera":    { power:0,  type:"psico",   acc:100, effect:"raise_def" },
+};
+
+const TYPE_CHART = {
+  fuoco:   { erba:2, acqua:0.5, fuoco:0.5, roccia:0.5 },
+  acqua:   { fuoco:2, erba:0.5, roccia:2 },
+  erba:    { acqua:2, fuoco:0.5, erba:0.5, roccia:2 },
+  elettro: { acqua:2, erba:0.5, elettro:0.5, roccia:0.5 },
+  normale: {},
+  psico:   { veleno:2 },
+  roccia:  { fuoco:2, normale:0.5 },
+  veleno:  { erba:2 },
+};
+
+// Tile types
+const T = { GRASS:0, TREE:1, WATER:2, GROUND:3, BUILDING:4, SIGN:5, TRAINER:6, CENTROMOSTRI:7, ITEM:8 };
+
+// World Map (15x10)
+const MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,7,3,3,3,3,1,1,1,1,1,1,1,1,1],
+  [1,3,3,3,3,3,3,3,3,3,3,3,3,1,1],
+  [1,3,3,5,3,3,3,0,0,3,3,3,3,3,1],
+  [1,3,3,3,3,3,3,0,0,3,3,3,3,3,1],
+  [1,3,3,3,3,6,3,3,3,3,8,3,3,3,1],
+  [1,3,3,3,3,3,3,2,2,3,3,3,3,3,1],
+  [1,3,0,0,3,3,3,2,2,3,3,3,3,3,1],
+  [1,3,0,0,3,3,3,3,3,3,3,3,3,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+
+const WILD_ENCOUNTERS = [
+  {mon:"rattata", prob:0.4},
+  {mon:"pidgey",  prob:0.3},
+  {mon:"bulbasaur",prob:0.15},
+  {mon:"geodude", prob:0.1},
+  {mon:"gengar",  prob:0.05},
+];
+
+const TRAINER = {
+  name:"ALLENATORE GARY",
+  mon: "squirtle",
+  level: 8,
+  reward: 200,
+};
+
+// ============================================================
+//  GAME STATE
+// ============================================================
+let state = {
+  player: { x:2, y:4 },
+  party: [],
+  gold: 500,
+  badges: 0,
+  items: { sfera:3, pozione:2 },
+  defeatedTrainer: false,
+  collectedItem: false,
+  steps: 0,
+};
+
+let battle = null;
+let battleBusy = false;
+
+// ============================================================
+//  UTILS
+// ============================================================
+function makeMon(id, level) {
+  const base = MONSTERS[id];
+  const hp = Math.floor(base.baseHp * level / 5 + level + 10);
+  const atk = Math.floor(base.baseAtk * level / 50 + 5);
+  const def = Math.floor(base.baseDef * level / 50 + 5);
+  const spd = Math.floor(base.baseSpd * level / 50 + 5);
+  return { id, name:base.name, emoji:base.emoji, type:base.type,
+    level, maxHp:hp, hp, atk, def, spd,
+    moves:[...base.moves], defBoost:1, atkBoost:1, status:null };
+}
+
+function calcDmg(attacker, defender, moveName) {
+  const mv = MOVES_DATA[moveName];
+  if (!mv || mv.power === 0) return 0;
+  const typeEff = (TYPE_CHART[mv.type] || {})[defender.type] || 1;
+  const stab = (mv.type === attacker.type) ? 1.5 : 1;
+  const rng = 0.85 + Math.random() * 0.15;
+  const dmg = Math.floor((attacker.atk * attacker.atkBoost / defender.def / defender.defBoost) * mv.power * stab * typeEff * rng / 5 + 2);
+  return { dmg: Math.max(1, dmg), typeEff };
+}
+
+function expToLevel(level) { return level * level * 10; }
+
+function hpColor(pct) {
+  if (pct > 0.5) return 'hp-high';
+  if (pct > 0.25) return 'hp-mid';
+  return 'hp-low';
+}
+
+// ============================================================
+//  CANVAS RENDERING
+// ============================================================
+const canvas = document.getElementById('world-canvas');
+const ctx = canvas.getContext('2d');
+const TILE = 32;
+
+const TILE_COLORS = {
+  [T.GRASS]:    '#3a7d44',
+  [T.TREE]:     '#1a5e20',
+  [T.WATER]:    '#1565c0',
+  [T.GROUND]:   '#8d6e63',
+  [T.BUILDING]: '#546e7a',
+  [T.SIGN]:     '#795548',
+  [T.TRAINER]:  '#e65100',
+  [T.CENTROMOSTRI]:'#e53935',
+  [T.ITEM]:     '#fdd835',
+};
+
+const TILE_EMOJI = {
+  [T.GRASS]: '🌿',
+  [T.TREE]:  '🌲',
+  [T.WATER]: '🌊',
+  [T.GROUND]: '',
+  [T.BUILDING]: '🏠',
+  [T.SIGN]:  '📋',
+  [T.TRAINER]:'🧑‍🦱',
+  [T.CENTROMOSTRI]:'🏥',
+  [T.ITEM]:  '💎',
+};
+
+let camX = 0, camY = 0;
+
+function updateCamera() {
+  camX = state.player.x * TILE - 240 + TILE/2;
+  camY = state.player.y * TILE - 160 + TILE/2;
+  camX = Math.max(0, Math.min(camX, MAP[0].length*TILE - 480));
+  camY = Math.max(0, Math.min(camY, MAP.length*TILE - 320));
+}
+
+function renderWorld() {
+  ctx.clearRect(0,0,480,320);
+  updateCamera();
+
+  for (let row=0; row<MAP.length; row++) {
+    for (let col=0; col<MAP[row].length; col++) {
+      const t = MAP[row][col];
+      const x = col*TILE - camX;
+      const y = row*TILE - camY;
+      if (x+TILE<0||x>480||y+TILE<0||y>320) continue;
+      ctx.fillStyle = TILE_COLORS[t];
+      ctx.fillRect(x, y, TILE, TILE);
+
+      // Grid
+      ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+      ctx.strokeRect(x, y, TILE, TILE);
+
+      // Emoji icons
+      const em = TILE_EMOJI[t];
+      if (em) {
+        if (t === T.TRAINER && state.defeatedTrainer) return;
+        if (t === T.ITEM && state.collectedItem) return;
+        ctx.font = '20px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(em, x+TILE/2, y+TILE/2);
+      }
+    }
+  }
+
+  // Player
+  const px = state.player.x*TILE - camX;
+  const py = state.player.y*TILE - camY;
+  ctx.font = '22px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🧢', px+TILE/2, py+TILE/2);
+}
+
+// ============================================================
+//  MOVEMENT & INTERACTION
+// ============================================================
+const SOLID = new Set([T.TREE, T.WATER, T.BUILDING]);
+let moving = false;
+
+function tryMove(dx, dy) {
+  const nx = state.player.x + dx;
+  const ny = state.player.y + dy;
+  if (ny < 0 || ny >= MAP.length || nx < 0 || nx >= MAP[0].length) return;
+  const t = MAP[ny][nx];
+  if (SOLID.has(t)) { showDialog("Non puoi passare di qui!"); return; }
+  if (t === T.TRAINER && !state.defeatedTrainer) {
+    showDialog(`GARY: "Ehi tu! Ti sfido a duello!"`, () => startTrainerBattle());
+    return;
+  }
+  state.player.x = nx;
+  state.player.y = ny;
+  renderWorld();
+  state.steps++;
+  checkTileEffect();
+  checkEncounter();
+}
+
+function checkTileEffect() {
+  const {x,y} = state.player;
+  const t = MAP[y][x];
+  if (t === T.CENTROMOSTRI) showDialog("🏥 Mostri curati! Tutti i tuoi mostri sono guariti!", () => {
+    state.party.forEach(m => m.hp = m.maxHp);
+  });
+  if (t === T.SIGN) showDialog("📋 Cartello: Benvenuti a Città di Alba! Attenzione ai Mostri selvatici nell'erba alta!");
+  if (t === T.ITEM && !state.collectedItem) {
+    state.collectedItem = true;
+    state.items.sfera += 3;
+    state.items.pozione += 2;
+    document.getElementById('item-count').textContent = state.items.sfera + state.items.pozione;
+    showOverlay("💎","Oggetto trovato!\n+3 Sferabestia\n+2 Pozione");
+  }
+}
+
+function checkEncounter() {
+  const {x,y} = state.player;
+  const t = MAP[y][x];
+  if (t !== T.GRASS) return;
+  if (Math.random() < 0.18) {
+    const roll = Math.random();
+    let cumul = 0;
+    for (const enc of WILD_ENCOUNTERS) {
+      cumul += enc.prob;
+      if (roll < cumul) {
+        startWildBattle(enc.mon, Math.floor(Math.random()*4)+3);
+        return;
+      }
+    }
+  }
+}
+
+function interact() {
+  const {x,y} = state.player;
+  // check adjacent tiles
+  const dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+  for (const [dx,dy] of dirs) {
+    const nx=x+dx, ny=y+dy;
+    if (ny<0||ny>=MAP.length||nx<0||nx>=MAP[0].length) continue;
+    const t = MAP[ny][nx];
+    if (t === T.SIGN) { showDialog("📋 Città di Alba — un piccolo luogo, grande nei sogni!"); return; }
+    if (t === T.CENTROMOSTRI) { showDialog("🏥 Mostro Center: 'Benvenuto! Curerò i tuoi Mostri!'", ()=>{ state.party.forEach(m=>m.hp=m.maxHp); }); return; }
+    if (t === T.TRAINER && !state.defeatedTrainer) { showDialog("GARY: 'Sei pronto per perdere?!'"); return; }
+    if (t === T.BUILDING) { showDialog("🏠 Una casa. Qualcuno risponde: 'Torna quando hai più medaglie!'"); return; }
+  }
+  showDialog("Non c'è nulla di speciale qui.");
+}
+
+// ============================================================
+//  DIALOG
+// ============================================================
+let dialogCallback = null;
+function showDialog(text, cb) {
+  const box = document.getElementById('dialog-box');
+  box.textContent = text;
+  box.style.display = 'block';
+  dialogCallback = cb || null;
+}
+function closeDialog() {
+  const box = document.getElementById('dialog-box');
+  box.style.display = 'none';
+  if (dialogCallback) { const cb=dialogCallback; dialogCallback=null; cb(); }
+}
+
+// ============================================================
+//  BATTLE ENGINE
+// ============================================================
+function startWildBattle(monId, level) {
+  const enemy = makeMon(monId, level);
+  const player = state.party[0];
+  battle = { enemy, player, wildMon:monId, wildLevel:level, turn:'player', caught:false };
+  enterBattleScreen();
+}
+
+function startTrainerBattle() {
+  const enemy = makeMon(TRAINER.mon, TRAINER.level);
+  const player = state.party[0];
+  battle = { enemy, player, trainer:true, turn:'player', caught:false };
+  enterBattleScreen();
+}
+
+function enterBattleScreen() {
+  document.getElementById('world-area').style.display = 'none';
+  document.getElementById('battle-screen').style.display = 'flex';
+  document.getElementById('move-panel').style.display = 'none';
+  document.getElementById('battle-actions').style.display = 'grid';
+  updateBattleUI();
+  setBattleLog(`Un ${battle.enemy.name} selvaggio appare!`);
+  if (battle.trainer) setBattleLog(`GARY lancia ${battle.enemy.name}!`);
+}
+
+function exitBattleScreen() {
+  document.getElementById('world-area').style.display = 'block';
+  document.getElementById('battle-screen').style.display = 'none';
+  battle = null;
+  renderWorld();
+}
+
+function updateBattleUI() {
+  const {enemy, player} = battle;
+  document.getElementById('e-name').textContent = enemy.name;
+  document.getElementById('e-level').textContent = `Lv${enemy.level}`;
+  const ePct = enemy.hp / enemy.maxHp;
+  document.getElementById('e-hp-bar').style.width = (ePct*100)+'%';
+  document.getElementById('e-hp-bar').className = 'hp-bar-fill ' + hpColor(ePct);
+  document.getElementById('e-hp-text').textContent = `${enemy.hp}/${enemy.maxHp}`;
+  document.getElementById('enemy-sprite').textContent = enemy.emoji;
+
+  document.getElementById('p-name').textContent = player.name;
+  document.getElementById('p-level').textContent = `Lv${player.level}`;
+  const pPct = player.hp / player.maxHp;
+  document.getElementById('p-hp-bar').style.width = (pPct*100)+'%';
+  document.getElementById('p-hp-bar').className = 'hp-bar-fill ' + hpColor(pPct);
+  document.getElementById('p-hp-text').textContent = `${player.hp}/${player.maxHp}`;
+  document.getElementById('player-sprite').textContent = player.emoji;
+}
+
+function setBattleLog(text) {
+  document.getElementById('battle-log').textContent = text;
+}
+
+function showMoves() {
+  if (battleBusy) return;
+  const panel = document.getElementById('move-panel');
+  panel.innerHTML = '';
+  battle.player.moves.forEach(mv => {
+    const md = MOVES_DATA[mv];
+    const btn = document.createElement('button');
+    btn.className = `move-btn type-${md ? md.type : 'normale'}`;
+    btn.innerHTML = `${mv}<br><span style="font-size:0.35rem;opacity:0.85">POT:${md?md.power:0} ACC:${md?md.acc:100}</span>`;
+    btn.onclick = () => executePlayerMove(mv);
+    panel.appendChild(btn);
+  });
+  document.getElementById('battle-actions').style.display = 'none';
+  panel.style.display = 'grid';
+}
+
+function executePlayerMove(moveName) {
+  if (battleBusy) return;
+  battleBusy = true;
+  document.getElementById('move-panel').style.display = 'none';
+  document.getElementById('battle-actions').style.display = 'grid';
+
+  const {player, enemy} = battle;
+  const mv = MOVES_DATA[moveName];
+
+  // Animate
+  document.getElementById('player-sprite').classList.add('attacking');
+  setTimeout(()=>document.getElementById('player-sprite').classList.remove('attacking'), 350);
+  setTimeout(()=>document.getElementById('enemy-sprite').classList.add('hurt'), 150);
+  setTimeout(()=>document.getElementById('enemy-sprite').classList.remove('hurt'), 500);
+
+  setTimeout(() => {
+    let logText = '';
+    if (!mv || mv.power === 0) {
+      // Status move
+      if (mv.effect === 'raise_def') { player.defBoost = Math.min(player.defBoost*1.5, 4); logText = `${player.name} aumenta la Difesa!`; }
+      else if (mv.effect === 'raise_atk') { player.atkBoost = Math.min(player.atkBoost*1.5, 4); logText = `${player.name} aumenta l'Attacco!`; }
+      else if (mv.effect === 'lower_atk') { enemy.atkBoost = Math.max(enemy.atkBoost*0.67, 0.25); logText = `${enemy.name} perde Attacco!`; }
+      else if (mv.effect === 'heal') { player.hp = Math.min(player.maxHp, player.hp + Math.floor(player.maxHp/2)); logText = `${player.name} recupera HP!`; }
+      else if (mv.effect === 'flee_move') { logText = `${player.name} non può scappare con questo!`; }
+      else logText = `${player.name} usa ${moveName}!`;
+    } else {
+      const acc = mv.acc || 100;
+      if (Math.random()*100 > acc) {
+        logText = `${player.name} manca il colpo!`;
+      } else {
+        const {dmg, typeEff} = calcDmg(player, enemy, moveName);
+        enemy.hp = Math.max(0, enemy.hp - dmg);
+        let eff = '';
+        if (typeEff > 1) eff = ' Super efficace!';
+        else if (typeEff < 1) eff = ' Non molto efficace...';
+        logText = `${player.name} usa ${moveName}! (${dmg} danni)${eff}`;
+        if (mv.effect === 'drain') { player.hp = Math.min(player.maxHp, player.hp + Math.floor(dmg/2)); }
+      }
+    }
+
+    updateBattleUI();
+    setBattleLog(logText);
+
+    if (enemy.hp <= 0) {
+      setTimeout(() => handleEnemyFaint(), 800);
+    } else {
+      setTimeout(() => enemyTurn(), 1000);
+    }
+  }, 400);
+}
+
+function enemyTurn() {
+  const {player, enemy} = battle;
+  const moveName = enemy.moves[Math.floor(Math.random()*enemy.moves.length)];
+  const mv = MOVES_DATA[moveName];
+
+  document.getElementById('enemy-sprite').style.animation = 'enemyAttack 0.3s ease-out';
+  setTimeout(()=>document.getElementById('enemy-sprite').style.animation='', 350);
+  setTimeout(()=>document.getElementById('player-sprite').classList.add('hurt'), 150);
+  setTimeout(()=>document.getElementById('player-sprite').classList.remove('hurt'), 500);
+
+  let logText = '';
+  if (!mv || mv.power === 0) {
+    if (mv && mv.effect === 'raise_def') { enemy.defBoost = Math.min(enemy.defBoost*1.5, 4); logText = `${enemy.name} aumenta la Difesa!`; }
+    else if (mv && mv.effect === 'raise_atk') { enemy.atkBoost = Math.min(enemy.atkBoost*1.5, 4); logText = `${enemy.name} aumenta l'Attacco!`; }
+    else if (mv && mv.effect === 'lower_atk') { player.atkBoost = Math.max(player.atkBoost*0.67, 0.25); logText = `${player.name} perde Attacco!`; }
+    else if (mv && mv.effect === 'heal') { enemy.hp = Math.min(enemy.maxHp, enemy.hp + Math.floor(enemy.maxHp/2)); logText = `${enemy.name} si cura!`; }
+    else logText = `${enemy.name} usa ${moveName}!`;
+  } else {
+    const acc = mv.acc || 100;
+    if (Math.random()*100 > acc) {
+      logText = `${enemy.name} manca il colpo!`;
+    } else {
+      const {dmg, typeEff} = calcDmg(enemy, player, moveName);
+      player.hp = Math.max(0, player.hp - dmg);
+      let eff = '';
+      if (typeEff > 1) eff = ' Super efficace!';
+      else if (typeEff < 1) eff = ' Non molto efficace...';
+      logText = `${enemy.name} usa ${moveName}! (${dmg} danni)${eff}`;
+    }
+  }
+
+  updateBattleUI();
+  setBattleLog(logText);
+
+  setTimeout(() => {
+    if (player.hp <= 0) {
+      handlePlayerFaint();
+    } else {
+      battleBusy = false;
+    }
+  }, 600);
+}
+
+function handleEnemyFaint() {
+  const {enemy, player} = battle;
+  const expGain = enemy.level * 50;
+  const goldGain = battle.trainer ? TRAINER.reward : enemy.level * 20;
+  state.gold += goldGain;
+  document.getElementById('gold').textContent = state.gold;
+
+  let msg = `${enemy.name} è esausto!\n+${expGain} EXP  +${goldGain}₽`;
+
+  if (battle.trainer) {
+    state.defeatedTrainer = true;
+    state.badges++;
+    document.getElementById('badge-count').textContent = `🏅 ${state.badges} Medaglie`;
+    msg += '\n🏅 Hai vinto la medaglia CORALLO!';
+  }
+
+  setBattleLog(enemy.name + ' è stato sconfitto!');
+  setTimeout(() => {
+    battleBusy = false;
+    exitBattleScreen();
+    showOverlay('🏆', msg);
+  }, 800);
+}
+
+function handlePlayerFaint() {
+  setBattleLog(`${battle.player.name} è esausto!`);
+  setTimeout(() => {
+    battleBusy = false;
+    exitBattleScreen();
+    // Restore at Centro Mostri
+    state.party.forEach(m => m.hp = Math.floor(m.maxHp * 0.3));
+    showOverlay('😢', `${battle.player.name} è KO!\nSei stato teletrasportato al Mostro Center.\nI tuoi Mostri sono stati curati parzialmente.`);
+  }, 1000);
+}
+
+function tryRun() {
+  if (battleBusy) return;
+  if (battle.trainer) { setBattleLog("Non puoi scappare da un allenatore!"); return; }
+  const {player, enemy} = battle;
+  const escapeOdds = (player.spd * 32) / Math.max(1, enemy.spd);
+  if (escapeOdds > 30 + Math.random()*255) {
+    setBattleLog("Sei scappato in salvo!");
+    setTimeout(() => { battleBusy = false; exitBattleScreen(); }, 800);
+  } else {
+    setBattleLog("Non riesci a scappare!");
+    setTimeout(() => { enemyTurn(); }, 600);
+  }
+}
+
+function useSferabestia() {
+  if (battleBusy) return;
+  if (battle.trainer) { setBattleLog("Non puoi catturare il Mostro di un allenatore!"); return; }
+  if (state.items.sfera <= 0) { setBattleLog("Non hai Sfere Bestia!"); return; }
+  state.items.sfera--;
+  document.getElementById('item-count').textContent = state.items.sfera + state.items.pozione;
+  battleBusy = true;
+
+  setBattleLog("🔴 Lanci una Sfera Bestia......");
+  const {enemy} = battle;
+  const catchRate = (1 - enemy.hp/enemy.maxHp) * 0.8 + 0.2;
+  setTimeout(() => {
+    if (Math.random() < catchRate) {
+      setBattleLog(`🎉 Hai catturato ${enemy.name}!`);
+      const caught = makeMon(enemy.id, enemy.level);
+      caught.hp = enemy.hp;
+      state.party.push(caught);
+      setTimeout(() => {
+        battleBusy = false;
+        exitBattleScreen();
+        showOverlay('🔴', `${enemy.name} catturato!\nSquadra: ${state.party.length}/6 Mostro`);
+      }, 1000);
+    } else {
+      setBattleLog(`Oh no! ${enemy.name} è uscito dalla Sfera Bestia!`);
+      setTimeout(() => { enemyTurn(); }, 800);
+    }
+  }, 1000);
+}
+
+// ============================================================
+//  MENU / PARTY
+// ============================================================
+function showParty() {
+  if (battle) {
+    document.getElementById('battle-screen').style.display = 'none';
+  } else {
+    document.getElementById('world-area').style.display = 'none';
+  }
+  const list = document.getElementById('party-list');
+  list.innerHTML = '';
+  state.party.forEach(mon => {
+    const pct = mon.hp/mon.maxHp;
+    list.innerHTML += `
+      <div class="party-card">
+        <div class="sprite">${mon.emoji}</div>
+        <div class="info">
+          <div class="pname">${mon.name}</div>
+          <div class="plevel">Lv${mon.level} — ${mon.type.toUpperCase()}</div>
+          <div class="php">
+            <div style="font-size:0.35rem;color:#aaa;margin-bottom:2px">HP ${mon.hp}/${mon.maxHp}</div>
+            <div class="hp-bar-bg" style="width:140px"><div class="hp-bar-fill ${hpColor(pct)}" style="width:${pct*100}%"></div></div>
+          </div>
+        </div>
+      </div>`;
+  });
+  document.getElementById('menu-screen').style.display = 'flex';
+}
+
+function closeMenu() {
+  document.getElementById('menu-screen').style.display = 'none';
+  if (battle) {
+    document.getElementById('battle-screen').style.display = 'flex';
+  } else {
+    document.getElementById('world-area').style.display = 'block';
+    renderWorld();
+  }
+}
+
+// ============================================================
+//  OVERLAY
+// ============================================================
+function showOverlay(emoji, text) {
+  document.getElementById('overlay-emoji').textContent = emoji;
+  document.getElementById('overlay-text').textContent = text;
+  document.getElementById('overlay-msg').style.display = 'flex';
+}
+function hideOverlay() {
+  document.getElementById('overlay-msg').style.display = 'none';
+}
+
+// ============================================================
+//  START GAME
+// ============================================================
+function startGame() {
+  // Give starter
+  state.party = [makeMon('charmander', 5)];
+  document.getElementById('title-screen').style.display = 'none';
+  document.getElementById('game-container').style.display = 'block';
+  renderWorld();
+  showDialog("🌟 Benvenuto nel mondo dei Mostro, Allenatore! Esplora la mappa con le frecce, premi Z per interagisci, X per la squadra. Attenzione ai Mostro nell'erba verde!");
+}
+
+// ============================================================
+//  INPUT
+// ============================================================
+document.addEventListener('keydown', e => {
+  const box = document.getElementById('dialog-box');
+
+  // Overlay
+  if (document.getElementById('overlay-msg').style.display === 'flex') {
+    if (e.key === 'z' || e.key === 'Z' || e.key === 'Enter') hideOverlay();
+    return;
+  }
+  // Menu
+  if (document.getElementById('menu-screen').style.display === 'flex') {
+    if (e.key === 'x' || e.key === 'X' || e.key === 'Escape') closeMenu();
+    return;
+  }
+  // Dialog
+  if (box.style.display === 'block') {
+    if (e.key === 'z' || e.key === 'Z' || e.key === 'Enter' || e.key === ' ') closeDialog();
+    return;
+  }
+  // Battle
+  if (battle) {
+    if (e.key === 'x' || e.key === 'X') showParty();
+    return;
+  }
+  // World
+  const moves = { ArrowUp:[0,-1], ArrowDown:[0,1], ArrowLeft:[-1,0], ArrowRight:[1,0],
+                  w:[0,-1], s:[0,1], a:[-1,0], d:[1,0],
+                  W:[0,-1], S:[0,1], A:[-1,0], D:[1,0] };
+  if (moves[e.key]) { e.preventDefault(); const [dx,dy]=moves[e.key]; tryMove(dx,dy); }
+  if (e.key==='z'||e.key==='Z'||e.key==='Enter') interact();
+  if (e.key==='x'||e.key==='X') showParty();
+});
+
+// Touch / on-screen dpad (for mobile)
+</script>
+
+<!-- Mobile D-Pad -->
+<style>
+#dpad {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 300;
+}
+#dpad button {
+  width: 44px; height: 44px;
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 6px;
+  font-size: 1.2rem;
+  cursor: pointer;
+  color: #fff;
+  font-family: monospace;
+  backdrop-filter: blur(4px);
+}
+#actions-mobile {
+  display: none;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 300;
+  flex-direction: column;
+  gap: 8px;
+}
+#actions-mobile button {
+  width: 48px; height: 48px;
+  background: rgba(192,57,43,0.7);
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.5rem;
+  color: #fff;
+  cursor: pointer;
+}
+@media (max-width: 520px) {
+  #dpad, #actions-mobile { display: flex; }
+  #game-container { width: 100vw; }
+  #world-canvas, #battle-field { width: 100vw; }
+}
+</style>
+
+<div id="dpad">
+  <div style="display:grid;grid-template-columns:44px 44px 44px;grid-template-rows:44px 44px 44px;gap:4px">
+    <div></div>
+    <button ontouchstart="tryMove(0,-1)" onclick="tryMove(0,-1)">▲</button>
+    <div></div>
+    <button ontouchstart="tryMove(-1,0)" onclick="tryMove(-1,0)">◀</button>
+    <div></div>
+    <button ontouchstart="tryMove(1,0)" onclick="tryMove(1,0)">▶</button>
+    <div></div>
+    <button ontouchstart="tryMove(0,1)" onclick="tryMove(0,1)">▼</button>
+    <div></div>
+  </div>
+</div>
+<div id="actions-mobile">
+  <button onclick="interact()">Z</button>
+  <button onclick="showParty()">X</button>
+</div>
+
+</body>
+</html>
